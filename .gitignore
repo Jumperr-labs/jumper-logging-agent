@@ -1,0 +1,6 @@
+/env
+.DS_Store
+/.idea
+.noseids
+*.egg-info
+*.pyc
