@@ -30,8 +30,10 @@ class MockEventStoreInJson(MockEventStore):
 
     def dump_to_file(self):
         with open(self.json_filename, b'wb') as f:
+            print('dumping to file: %s', (self.events,))
             json.dump(self.events, f)
 
     def add_events(self, d):
+        print('add events: %s' % (d,))
         super(MockEventStoreInJson, self).add_events(d)
         self.dump_to_file()

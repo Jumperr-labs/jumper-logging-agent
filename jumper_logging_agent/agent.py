@@ -1,6 +1,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import json
+import pprint
+import socket
 import stat
 import os
 import argparse
@@ -12,12 +14,15 @@ import threading
 from importlib import import_module
 import itertools
 import keen
+import time
+
+import queue
 from future import standard_library
 # noinspection PyUnresolvedReferences
 from future.builtins import *
 standard_library.install_aliases()
 
-DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent'
+DEFAULT_PORT = 5009
 DEFAULT_FLUSH_THRESHOLD = 100
 DEFAULT_FLUSH_PRIORITY = 2
 DEFAULT_FLUSH_INTERVAL = 15.0
@@ -44,66 +49,110 @@ def open_fifo_read(filename):
 log = logging.getLogger('jumper.LoggingAgent')
 
 
+class Timer(threading.Thread):
+    def __init__(self, interval, target, *args, **kwargs):
+        self.stop_event = threading.Event()
+
+        def wrapped():
+            while not self.stop_event.is_set():
+                try:
+                    target()
+                except Exception as e:
+                    log.warn('Caught exception in timer: %s', e)
+                self.stop_event.wait(interval)
+
+        super(Timer, self).__init__(target=wrapped, *args, **kwargs)
+
+    def cancel(self):
+        self.stop_event.set()
+
+
 class Agent(object):
     def __init__(
-            self, input_filename, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
-            flush_interval=DEFAULT_FLUSH_INTERVAL, event_store=None, default_event_type=DEFAULT_EVENT_TYPE
+            self, port=0, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
+            flush_interval=DEFAULT_FLUSH_INTERVAL, event_store=None, default_event_type=DEFAULT_EVENT_TYPE,
+            on_listening=None,
     ):
-        self.input_file = open_fifo_read(input_filename)
+        self.port = port
         self.flush_priority = flush_priority
         self.flush_threshold = flush_threshold
         self.flush_interval = flush_interval
-        self.control_filename = input_filename + '.control'
-        self.control_file = open_fifo_read(self.control_filename)
+        self.event_count = 0
         self.pending_events = []
         self.event_store = event_store or keen
         self.default_event_type = default_event_type
-        self.flush_lock = threading.Lock()
-        self.stop_event = threading.Event()
+        self.flush_timer_lock = threading.Lock()
+        self.flush_timer = None
+        self.on_listening = on_listening
 
     def start(self):
-        flush_timer = threading.Timer(self.flush_interval, self.flush)
-        flush_timer.start()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.flush_timer = Timer(self.flush_interval, self.flush)
+        self.flush_timer.start()
 
-        try:
+        q = queue.Queue()
+
+        def worker():
             while True:
-                select_result, _, _, = select.select((self.input_file, self.control_file), (), ())
-                if self.input_file not in select_result:
-                    break  # self.control_file has input - stop
+                received = q.get()
 
-                should_flush = False
-                read_events = []
-                lines = self.input_file.read()
-                log.debug('read from input: %s', lines)
-                for line in lines.split('\n'):
-                    if not line:
-                        continue
-                    try:
-                        event = json.loads(line)
-                    except ValueError as e:
-                        log.warn('Invalid JSON: %s\n%s', line, e)
-                    else:
-                        read_events.append(event)
-                        should_flush = should_flush or event.get('priority') >= self.flush_priority
+                if received == b'stop':
+                    break
 
-                with self.flush_lock:
-                    self.pending_events.extend(read_events)
+                try:
+                    received = received.decode()
+                    event = json.loads(received)
+                except ValueError as e:
+                    # log.warn('Invalid JSON: %s\n%s', received, e)
+                    print('Invalid JSON: %s\n%s', received, e)
+                    continue
 
-                should_flush = should_flush or len(self.pending_events) >= self.flush_threshold
+                self.event_count += 1
+
+                self.pending_events.append(event)
+                # print('appended event, count=%s' % (self.event_count,))
+                should_flush = len(self.pending_events) >= self.flush_threshold or \
+                    event.get('priority') >= self.flush_priority
 
                 if should_flush:
+                    print('calling explicit flush')
                     self.flush()
 
+        t = threading.Thread(target=worker)
+        t.start()
+
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock.bind(('', self.port))
+            self.port = sock.getsockname()[1]
+            if self.on_listening:
+                self.on_listening()
+
+            while True:
+                packet = sock.recv(65535)
+                if not packet:
+                    continue
+                q.put(packet)
+                if packet == b'stop':
+                    break
+
         finally:
-            flush_timer.cancel()
-            self.cleanup()
+            self.flush_timer.cancel()
+            self.flush_timer.join()
+            sock.close()
+            t.join()
 
     def flush(self):
-        with self.flush_lock:
-            events = self.pending_events
-            self.pending_events = []
+        # print('flush entering')
+        events = self.pending_events
+        self.pending_events = []
 
-        self.write_events(events)
+        if events:
+            # print('flush writing events: %s', events)
+            self.write_events(events)
+
+        # print('flush exiting')
 
     def key(self, event):
         return event.get('type', self.default_event_type)
@@ -114,20 +163,8 @@ class Agent(object):
         self.event_store.add_events(event_dict)
 
     def stop(self):
-        with open(self.control_filename, b'wb') as f:
-            f.write(b'stop')
-
-    def cleanup(self):
-        log.info('cleaning up')
-        if self.input_file:
-            log.debug('closing input file')
-            self.input_file.close()
-            self.input_file = None
-
-        if self.control_file:
-            log.debug('closing control file')
-            self.control_file.close()
-            self.control_file = None
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(b'stop', ('127.0.0.1', self.port))
 
     def __enter__(self):
         return self.start()
@@ -144,7 +181,7 @@ def extract_class(s):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', help='Name of named pipe to read from', type=str, default=DEFAULT_INPUT_FILENAME)
+    parser.add_argument('--port', help='UDP port to read from', type=int, default=DEFAULT_PORT)
     parser.add_argument(
         '--flush-threshold', help='Number of events buffered until flushing', type=int, default=DEFAULT_FLUSH_THRESHOLD
     )
@@ -161,6 +198,7 @@ def main():
         default=DEFAULT_EVENT_TYPE
     )
     parser.add_argument('--event-store', help='Module to use as event store', type=str, default=None)
+    parser.add_argument('-v', '--verbose', help='Print logs', action='store_true')
     args = parser.parse_args()
 
     event_store = None
@@ -172,15 +210,24 @@ def main():
             print('Could not load or instantiate event store %s: %s' % (args.event_store, e))
             return 2
 
+    if args.verbose:
+        logging.basicConfig(format='%(name)s: %(message)s', level=logging.DEBUG)
+
+    print('Starting agent')
+
+    def on_listening():
+        print('Agent listening on port %s' % (agent.port,))
+
     agent = Agent(
-        args.input,
+        port=args.port,
         flush_priority=args.flush_priority,
         flush_threshold=args.flush_threshold,
         flush_interval=args.flush_interval,
         default_event_type=args.default_event_type,
         event_store=event_store,
+        on_listening=on_listening,
     )
-    atexit.register(lambda: agent.cleanup)
+    # atexit.register(lambda: agent.cleanup)
     agent.start()
     return 0
 

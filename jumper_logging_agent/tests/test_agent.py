@@ -4,6 +4,7 @@ import collections
 import json
 import os
 import random
+import socket
 import string
 import unittest
 import threading
@@ -13,6 +14,7 @@ import time
 
 import errno
 
+import functools
 from future import standard_library
 
 from . import mock_event_store
@@ -39,18 +41,18 @@ def wait_for(predicate, description, timeout=3.0, sample_interval=None):
         time.sleep(sample_interval)
 
 
-def open_fifo_readwrite(filename):
-    try:
-        os.mkfifo(filename)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-
-    if not is_fifo(filename):
-        raise ValueError('file "%s" is not a named pipe' % (filename,))
-
-    fd = os.open(filename, os.O_RDWR | os.O_NONBLOCK)
-    return os.fdopen(fd, 'wb')
+# def open_fifo_readwrite(filename):
+#     try:
+#         os.mkfifo(filename)
+#     except OSError as e:
+#         if e.errno != errno.EEXIST:
+#             raise
+#
+#     if not is_fifo(filename):
+#         raise ValueError('file "%s" is not a named pipe' % (filename,))
+#
+#     fd = os.open(filename, os.O_RDWR | os.O_NONBLOCK)
+#     return os.fdopen(fd, 'wb')
 
 
 class _AbstractAgentTestCase(unittest.TestCase):
@@ -58,25 +60,22 @@ class _AbstractAgentTestCase(unittest.TestCase):
         self.agent = None
         self.run_id = random_string()
         self.agent_filename = '/tmp/agent_' + self.run_id
-        self.output_file = open_fifo_readwrite(self.agent_filename)
-        self.event_count = 0
+        self.agent_port = None
 
     def tearDown(self):
-        self.output_file.close()
         self.stop_agent()
-        os.remove(self.agent_filename)
 
     def push_event_to_agent(self, priority=None, event_type='t', num_events=1):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         for _ in range(num_events):
-            event = {'event_id': self.event_count}
-            self.event_count += 1
+            event = {'event_id': 12}
             if event_type is not None:
                 event['type'] = event_type
             if priority is not None:
                 event['priority'] = priority
-            b = json.dumps(event) + '\n'
-            self.output_file.write(b)
-        self.output_file.flush()
+            b = json.dumps(event).encode()
+            sock.sendto(b, ('127.0.0.1', self.agent_port))
+        sock.close()
 
     def written_events(self, t=None):
         raise NotImplementedError()
@@ -88,7 +87,7 @@ class _AbstractAgentTestCase(unittest.TestCase):
         raise NotImplementedError()
 
     def test_flush_threshold(self):
-        flush_threshold=2
+        flush_threshold = 2
         self.start_agent(flush_interval=10, flush_threshold=flush_threshold)
         self.push_event_to_agent(num_events=flush_threshold)
         wait_for(lambda: len(self.written_events('t')) == flush_threshold, 'events to be flushed')
@@ -104,34 +103,45 @@ class _AbstractAgentTestCase(unittest.TestCase):
         flush_interval = 0.3
         self.start_agent(flush_interval=flush_interval, flush_threshold=10)
         self.push_event_to_agent(num_events=2)
-        wait_for(lambda: len(self.written_events('t')) >= 2, 'events to be flushed', flush_interval * 3)
+        wait_for(lambda: len(self.written_events('t')) >= 2, 'events to be flushed', 5.0)
 
     def test_multiple_writers(self):
-        self.start_agent()
+        flush_interval = 2.0
+        self.start_agent(flush_interval=flush_interval)
         time.sleep(1)
         should_stop = False
-        num_events = 1000
-        num_threads = 2
+        total_events = 10000
+        num_threads = 4
+        event_count = [0] * num_threads
 
-        def writer():
+        def writer(i):
             while not should_stop:
-                self.push_event_to_agent(num_events=random.randint(1, 10))
+                num_events = random.randint(1, 10)
+                self.push_event_to_agent(num_events=num_events)
+                event_count[i] += num_events
 
-        threads = [threading.Thread(target=writer) for _ in range(num_threads)]
+        threads = [threading.Thread(target=functools.partial(writer, i)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
 
-        wait_for(lambda: self.event_count >= num_events, '%s events pushed' % (num_events,), 5.0)
+        wait_for(lambda: sum(event_count) >= total_events, '%s events pushed' % (total_events,), 5.0)
+        actual_total_events = sum(event_count)
+        print('event count=%s, total=%s' % (event_count, actual_total_events))
 
         should_stop = True
         for t in threads:
             t.join()
 
+        def written_events(t):
+            result = len(self.written_events(t))
+            print('written events', result)
+            return result
+
         wait_for(
-            lambda: len(self.written_events('t')) == self.event_count,
-            '%s events written to store' % (num_events,),
-            5.0
+            lambda: written_events('t') == actual_total_events,
+            '%s events written to store' % (total_events,),
+            flush_interval * 2
         )
 
 
@@ -146,10 +156,14 @@ class AgentTestsInThread(_AbstractAgentTestCase):
 
     def start_agent(self, **kwargs):
         self.mock_event_store = MockEventStore()
-        self.agent = Agent(self.agent_filename, event_store=self.mock_event_store, **kwargs)
+        listening_event = threading.Event()
+        self.agent = Agent(event_store=self.mock_event_store, on_listening=lambda: listening_event.set(), **kwargs)
         self.thread = threading.Thread(target=self.agent.start)
         self.thread.daemon = True
         self.thread.start()
+        if not listening_event.wait(3.0):
+            raise Exception('Agent has not started in time')
+        self.agent_port = self.agent.port
 
     def stop_agent(self):
         if self.agent:
@@ -168,40 +182,52 @@ class AgentTestsInThread(_AbstractAgentTestCase):
     def test_not_flushed_before_reaching_threshold(self):
         self.start_agent(flush_interval=10, flush_threshold=2)
         self.push_event_to_agent()
-        wait_for(lambda: self.agent.pending_events, 'event to reach agent')
+        wait_for(lambda: self.agent.event_count, 'event to reach agent')
         self.assertFalse(self.written_events())
 
 
-class AgentProcessTests(_AbstractAgentTestCase):
-    def setUp(self):
-        super(AgentProcessTests, self).setUp()
-        self.mock_event_store_json = '/tmp/mock_event_store_' + self.run_id
-
-    def tearDown(self):
-        super(AgentProcessTests, self).tearDown()
-
-    def start_agent(self, **kwargs):
-        args = ['python', '%s/agent_main.py' % (MAIN_DIR,)]
-        args.extend(['--input', self.agent_filename])
-        args.extend(['--event-store', 'jumper_logging_agent.tests.mock_event_store.MockEventStoreInJson'])
-        for k, v in kwargs.items():
-            args.append('--%s' % (k.replace('_', '-')))
-            args.append(str(v))
-
-        env = os.environ.copy()
-        env[mock_event_store.ENV_JUMPER_MOCK_EVENT_STORE_JSON] = self.mock_event_store_json
-        self.agent = subprocess.Popen(args, env=env)
-
-    def stop_agent(self):
-        if self.agent:
-            self.agent.terminate()
-
-    def written_events(self, t=None):
-        try:
-            with open(self.mock_event_store_json, b'r') as f:
-                events = json.load(f)
-        except (ValueError, IOError):
-            events = collections.defaultdict(list)
-
-        return events[t] if t is not None else events
-
+# class AgentProcessTests(_AbstractAgentTestCase):
+#     def setUp(self):
+#         super(AgentProcessTests, self).setUp()
+#         self.mock_event_store_json = '/tmp/mock_event_store_' + self.run_id
+#         self.agent_output_filename = '/tmp/agent_output_' + self.run_id
+#         self.agent_output_file = None
+#
+#     def tearDown(self):
+#         super(AgentProcessTests, self).tearDown()
+#
+#     def start_agent(self, **kwargs):
+#         args = ['python', '-u', '%s/agent_main.py' % (MAIN_DIR,)]
+#         args.extend(['--port', '0'])
+#         args.extend(['--event-store', 'jumper_logging_agent.tests.mock_event_store.MockEventStoreInJson'])
+#         for k, v in kwargs.items():
+#             args.append('--%s' % (k.replace('_', '-')))
+#             args.append(str(v))
+#
+#         env = os.environ.copy()
+#         env[mock_event_store.ENV_JUMPER_MOCK_EVENT_STORE_JSON] = self.mock_event_store_json
+#
+#         self.agent_output_file = open(self.agent_output_filename, b'w')
+#         self.agent = subprocess.Popen(args, env=env, stdout=subprocess.PIPE)
+#
+#         for stdout_line in iter(self.agent.stdout.readline, b''):
+#             if 'Agent listening' in stdout_line:
+#                 self.agent_port = int(stdout_line.split()[-1])
+#                 break
+#
+#     def stop_agent(self):
+#         if self.agent:
+#             self.agent.terminate()
+#         if self.agent_output_file:
+#             self.agent_output_file.close()
+#
+#     def written_events(self, t=None):
+#         try:
+#             with open(self.mock_event_store_json, b'r') as f:
+#                 events = json.load(f)
+#         except (ValueError, IOError):
+#             events = collections.defaultdict(list)
+#
+#         print('written events', len(events[t]))
+#         return events[t] if t is not None else events
+#
