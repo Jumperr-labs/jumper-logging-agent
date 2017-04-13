@@ -37,3 +37,9 @@ class MockEventStoreInJson(MockEventStore):
         print('add events: %s' % (d,))
         super(MockEventStoreInJson, self).add_events(d)
         self.dump_to_file()
+
+    def delete(self):
+        try:
+            os.remove(self.json_filename)
+        except IOError:
+            pass
