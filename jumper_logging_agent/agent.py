@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import atexit
 import json
 import stat
 import os
@@ -12,6 +13,8 @@ from importlib import import_module
 import itertools
 import keen
 import time
+
+import signal
 from future import standard_library
 # noinspection PyUnresolvedReferences
 from future.builtins import *
@@ -69,7 +72,6 @@ class Agent(object):
             on_listening=None,
     ):
         self.input_filename = input_filename
-        self.control_filename = input_filename + '.control'
         self.flush_priority = flush_priority
         self.flush_threshold = flush_threshold
         self.flush_interval = flush_interval
@@ -132,6 +134,9 @@ class Agent(object):
                         break  # self.control_file has input - stop
 
                     on_data_available(input_file)
+            except select.error as e:
+                if e.args[0] == errno.EINTR:
+                    break
             except IOError as e:
                 log.warn('got exception', exc_info=True)
                 if e.errno not in (errno.EAGAIN, errno.EPIPE):
@@ -144,6 +149,8 @@ class Agent(object):
                     input_file.close()
                 if control_file:
                     control_file.close()
+                self.cleanup()
+                print('Agent stopped')
 
     def flush(self):
         events = self.pending_events
@@ -160,15 +167,33 @@ class Agent(object):
         event_dict = {k: list(v) for k, v in grouped}
         self.event_store.add_events(event_dict)
 
+    @property
+    def control_filename(self):
+        return agent_control_filename(self.input_filename)
+
     def stop(self):
-        with open(self.control_filename, b'wb') as f:
-            f.write(b'stop')
+        stop_agent(self.input_filename)
+
+    def cleanup(self):
+        try:
+            os.remove(self.control_filename)
+        except OSError:
+            pass
 
     def __enter__(self):
         return self.start()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
+
+
+def agent_control_filename(agent_input_filename):
+    return agent_input_filename + '.control'
+
+
+def stop_agent(agent_input_filename):
+    with open(agent_control_filename(agent_input_filename), b'wb') as f:
+        f.write(b'stop')
 
 
 def extract_class(s):
@@ -208,7 +233,7 @@ def main():
             print('Could not load or instantiate event store %s: %s' % (args.event_store, e))
             return 2
 
-    log_level = logging.DEBUG if args.verbose else logging.WARN
+    log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(format='%(asctime)s %(levelname)8s %(name)10s: %(message)s', level=log_level)
 
     print('Starting agent')
@@ -225,8 +250,14 @@ def main():
         event_store=event_store,
         on_listening=on_listening,
     )
-    # atexit.register(lambda: agent.cleanup)
+
+    signal.signal(signal.SIGTERM, lambda *a: agent.stop())
+    signal.signal(signal.SIGINT, lambda *a: agent.stop())
+
+    atexit.register(agent.cleanup)
+
     agent.start()
+    agent.cleanup()
     return 0
 
 

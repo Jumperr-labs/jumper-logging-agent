@@ -30,6 +30,13 @@ from jumper_logging_agent.agent import Agent, is_fifo
 MAIN_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
+def delete_file(filename):
+    try:
+        os.remove(filename)
+    except OSError:
+        pass
+
+
 def random_string(n=5):
     return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(n))
 
@@ -49,9 +56,6 @@ def open_fifo_readwrite(filename):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
-
-    # if not is_fifo(filename):
-    #     raise ValueError('file "%s" is not a named pipe' % (filename,))
 
     fd = os.open(filename, os.O_RDWR | os.O_NONBLOCK)
     return os.fdopen(fd, 'wb')
@@ -112,10 +116,7 @@ class _AbstractAgentTestCase(unittest.TestCase):
     def tearDown(self):
         close_local_agent_file()
         self.stop_agent()
-        if os.path.exists(self.agent_filename):
-            os.remove(self.agent_filename)
-        if os.path.exists(self.agent_filename + '.control'):
-            os.remove(self.agent_filename + '.control')
+        delete_file(self.agent_filename)
 
     def thread_local_agent_file(self):
         agent_file = getattr(local, 'agent_file', None)
@@ -248,14 +249,12 @@ class AgentProcessTests(_AbstractAgentTestCase):
     def setUp(self):
         super(AgentProcessTests, self).setUp()
         self.mock_event_store_json = '/tmp/mock_event_store_' + self.run_id
-        self.agent_output_filename = '/tmp/agent_output_' + self.run_id
         self.agent_print_stdout_thread = None
         self.agent_output = []
 
     def tearDown(self):
         super(AgentProcessTests, self).tearDown()
-        if os.path.exists(self.mock_event_store_json):
-            os.remove(self.mock_event_store_json    )
+        delete_file(self.mock_event_store_json)
 
     def start_agent(self, **kwargs):
         args = ['python', '-u', '%s/agent_main.py' % (MAIN_DIR,)]
@@ -268,7 +267,6 @@ class AgentProcessTests(_AbstractAgentTestCase):
         env = os.environ.copy()
         env[mock_event_store.ENV_JUMPER_MOCK_EVENT_STORE_JSON] = self.mock_event_store_json
 
-        self.agent_output_file = open(self.agent_output_filename, b'w')
         self.agent = subprocess.Popen(args, env=env, stdout=subprocess.PIPE)
 
         def agent_print_stdout():
@@ -283,8 +281,6 @@ class AgentProcessTests(_AbstractAgentTestCase):
     def stop_agent(self):
         if self.agent:
             self.agent.terminate()
-        if self.agent_output_file:
-            self.agent_output_file.close()
         if self.agent_print_stdout_thread:
             self.agent_print_stdout_thread.join()
 
