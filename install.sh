@@ -19,9 +19,7 @@ python setup.py install
 deactivate
 
 # Setup the jumper agent service
-cp /opt/jumper-logging-agent/jumper-agent.template /opt/jumper-logging-agent/jumper-agent.service
-echo "ExecStart=/opt/jumper-logging-agent/venv/bin/python2.7 /opt/jumper-logging-agent/agent_main.py" >> /opt/jumper-logging-agent/jumper-agent.service
-cp /opt/jumper-logging-agent/jumper-agent.service /lib/systemd/jumper-agent.service
+cp /opt/jumper-logging-agent/jumper-agent.template /lib/systemd/jumper-agent.service
 ln -s /lib/systemd/jumper-agent.service /etc/systemd/system/jumper-agent.service
 
 # Start the jumper agent service

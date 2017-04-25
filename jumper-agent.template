@@ -6,3 +6,4 @@ WantedBy=multi-user.target
 
 [Service]
 Type=simple
+ExecStart=/opt/jumper-logging-agent/venv/bin/python2.7 /opt/jumper-logging-agent/agent_main.py
