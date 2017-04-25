@@ -20,7 +20,7 @@ from future import standard_library
 from future.builtins import *
 standard_library.install_aliases()
 
-DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent'
+DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent/events'
 DEFAULT_FLUSH_THRESHOLD = 100
 DEFAULT_FLUSH_PRIORITY = 2
 DEFAULT_FLUSH_INTERVAL = 15.0
