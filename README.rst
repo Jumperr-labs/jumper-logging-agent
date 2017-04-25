@@ -8,7 +8,7 @@ Installation
 
 Clone code from github or download and extract with the following command:
 
-```
+```bash
 wget -qO- https://s3-us-west-1.amazonaws.com/jumper-agent/jumper-logging-agent.tar.gz | tar xvz
 ```
 
