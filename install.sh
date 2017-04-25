@@ -1,3 +1,9 @@
+# Test for root
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root (sudo)"
+  exit
+fi
+
 # Install pip and virtualenv
 apt-get install python-pip
 pip install virtualenv
