@@ -4,6 +4,10 @@ if [ "$EUID" -ne 0 ]
   exit
 fi
 
+# Copying the agent to its final destination
+cp -r jumper-logging-agent /opt
+cd /opt/jumper-logging-agent
+
 # Install pip and virtualenv
 apt-get install -y python-pip
 yes w | pip install virtualenv
