@@ -6,7 +6,7 @@ fi
 
 # Install pip and virtualenv
 apt-get install python-pip
-pip install virtualenv
+yes w | pip install virtualenv
 
 # Create a virtual environment and install the app
 virtualenv venv
