@@ -1,3 +1,5 @@
+#!/bin/sh
+
 # Test for root
 if [ "$EUID" -ne 0 ]
   then echo "Please run as root (sudo)"
@@ -6,22 +8,20 @@ fi
 
 # Copying the agent to its final destination
 cp -r jumper-logging-agent /opt
-cd /opt/jumper-logging-agent
 
-# Install pip and virtualenv
-apt-get install -y python-pip
+# Install virtualenv
 yes w | pip install virtualenv
 
 # Create a virtual environment and install the app
-virtualenv venv
-source venv/bin/activate
+virtualenv /opt/jumper-logging-agent/venv
+source /opt/jumper-logging-agentvenv/bin/activate
 python setup.py install
 deactivate
 
 # Setup the jumper agent service
-cp jumper-agent.template jumper-agent.service
-echo "ExecStart=$PWD/venv/bin/python2.7 $PWD/agent_main.py" >> jumper-agent.service
-cp jumper-agent.service /lib/systemd/jumper-agent.service
+cp /opt/jumper-logging-agent/jumper-agent.template /opt/jumper-logging-agent/jumper-agent.service
+echo "ExecStart=/opt/jumper-logging-agent/venv/bin/python2.7 /opt/jumper-logging-agent/agent_main.py" >> /opt/jumper-logging-agent/jumper-agent.service
+cp /opt/jumper-logging-agent/jumper-agent.service /lib/systemd/jumper-agent.service
 ln -s /lib/systemd/jumper-agent.service /etc/systemd/system/jumper-agent.service
 
 # Start the jumper agent service

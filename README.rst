@@ -14,5 +14,5 @@ Clone code from github or download and extract with the following command:
 
 Run the following command to complete the installation and fire up the agent service:
 
-	`sudo bash jumper-logging-agent/install.sh`
+	`sudo sh jumper-logging-agent/install.sh`
 
