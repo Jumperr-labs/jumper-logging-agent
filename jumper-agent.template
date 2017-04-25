@@ -1,0 +1,8 @@
+[Unit]
+Description=Jumper Agent Service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
