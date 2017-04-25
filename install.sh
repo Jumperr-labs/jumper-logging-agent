@@ -5,7 +5,7 @@ if [ "$EUID" -ne 0 ]
 fi
 
 # Install pip and virtualenv
-apt-get install python-pip
+apt-get install -y python-pip
 yes w | pip install virtualenv
 
 # Create a virtual environment and install the app
