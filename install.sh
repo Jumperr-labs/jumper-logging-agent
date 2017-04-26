@@ -12,7 +12,7 @@ if [ -f /etc/lsb-release ]; then
     OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
 fi
 
-if [OS="ubuntu"]; then
+if [ $OS = "ubuntu" ]; then
     [[ `initctl` =~ -\.mount ]] || ( echo "init.d is required but it's not running.  Aborting." >&2; exit 1 )    
 else
     # Check for systemd
@@ -36,7 +36,7 @@ SERVICE_NAME=jumper-agent
 
 if ! command -v virtualenv --version >/dev/null 2>&1; then
     echo Installing virtualenv...
-    yes w | python2.7 -m pip --isolated -qq install virtualenv
+    yes w | python2.7 -m pip -qq install virtualenv
 fi
 
 if id -u ${SERVICE_USER} >/dev/null 2>&1; then
@@ -78,13 +78,12 @@ EOFSU
 # Setup the jumper agent service
 echo Setting up service ${SERVICE_NAME}...
 
-if [OS="ubuntu"]; then
-    SERVICE_FILE=/etc/init.d/${SERVICE_NAME}.sh
+if [ $OS = "ubuntu" ]; then
+    SERVICE_FILE=/etc/init.d/${SERVICE_NAME}
 
     cp ${SCRIPT_DIR}/jumper.template ${SERVICE_FILE}
-    echo "${DEST_DIR}/venv/bin/python2.7 ${DEST_DIR}/agent_main.py" >> ${SERVICE_FILE}
-    echo "User=${SERVICE_USER}" >> ${SERVICE_FILE}
-    ln -fs ${SERVICE_FILE} /etc/systemd/system/${SERVICE_NAME}.service
+
+    chmod 755 ${SERVICE_FILE}
 
     # Start the jumper agent service
     update-rc.d ${SERVICE_NAME} defaults
@@ -93,10 +92,8 @@ if [OS="ubuntu"]; then
 
     sleep 1
 
-    if [[ "`service ${SERVICE_NAME} status`" -ne "active" ]]; then
+    if [[ "`service ${SERVICE_NAME} status`" -ne "Running" ]]; then
         echo "Error: Service ${SERVICE_NAME} is not running. Status information: " >&2
-        echo "" >&2
-        systemctl status ${SERVICE_NAME} >&2
         exit 1
     fi
 else
