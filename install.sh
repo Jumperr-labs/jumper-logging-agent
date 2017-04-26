@@ -6,15 +6,15 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-OS="Debian"
+OS="debian"
 
 if [ -f /etc/lsb-release ]; then
     OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
 fi
 
-if [OS="ubunutu"]
+if [OS="ubuntu"]; then
     [[ `initctl` =~ -\.mount ]] || ( echo "init.d is required but it's not running.  Aborting." >&2; exit 1 )    
-elif
+else
     # Check for systemd
     [[ `systemctl` =~ -\.mount ]] || ( echo "systemd is required but it's not running.  Aborting." >&2; exit 1 )
 fi
@@ -53,7 +53,7 @@ chown ${SERVICE_USER}:${SERVICE_USER} ${FIFO_DIR}
 
 # Copying the agent to its final destination
 COPY_FILES="jumper_logging_agent README.rst setup.py setup.cfg agent_main.py"
-for FILE in "${COPY_FILES}"; do
+for FILE in ${COPY_FILES}; do
     cp -R ${SCRIPT_DIR}/${FILE} ${DEST_DIR}/
 done
 
@@ -78,7 +78,7 @@ EOFSU
 # Setup the jumper agent service
 echo Setting up service ${SERVICE_NAME}...
 
-if OS="ubunutu"
+if [OS="ubuntu"]; then
     SERVICE_FILE=/etc/init.d/${SERVICE_NAME}.sh
 
     cp ${SCRIPT_DIR}/jumper.template ${SERVICE_FILE}
@@ -99,7 +99,7 @@ if OS="ubunutu"
         systemctl status ${SERVICE_NAME} >&2
         exit 1
     fi
-elif
+else
     SERVICE_FILE=/lib/systemd/${SERVICE_NAME}.service
 
     cp ${SCRIPT_DIR}/jumper-agent.template ${SERVICE_FILE}
