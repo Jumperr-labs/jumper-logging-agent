@@ -12,7 +12,7 @@ if [ -f /etc/lsb-release ]; then
     OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
 fi
 
-if OS="ubunutu"
+if [OS="ubunutu"]
     [[ `initctl` =~ -\.mount ]] || ( echo "init.d is required but it's not running.  Aborting." >&2; exit 1 )    
 elif
     # Check for systemd
