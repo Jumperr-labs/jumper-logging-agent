@@ -1,9 +1,0 @@
-description "Jumper Agent Service"
-author "jonathan@jumper.io"
-
-start on runlevel [2345]
-stop on runlevel [!2345]
-
-respawn
-
-exec /opt/jumper-logging-agent/venv/bin/python2.7 /opt/jumper-logging-agent/agent_main.py

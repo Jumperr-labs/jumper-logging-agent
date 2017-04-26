@@ -1,0 +1,11 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          jumperagent
+# Required-Start:    
+# Required-Stop:     
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Jumper Logging Agent
+# Description:       Start Jumper Logging Agent
+### END INIT INFO
+# Author: Roy Razon <roy@jumper.io>

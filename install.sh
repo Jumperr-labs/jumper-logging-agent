@@ -6,8 +6,18 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-# Check for systemd
-[[ `systemctl` =~ -\.mount ]] || ( echo "systemd is required but it's not running.  Aborting." >&2; exit 1 )
+OS="Debian"
+
+if [ -f /etc/lsb-release ]; then
+    OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
+fi
+
+if OS="ubunutu"
+    [[ `initctl` =~ -\.mount ]] || ( echo "init.d is required but it's not running.  Aborting." >&2; exit 1 )    
+elif
+    # Check for systemd
+    [[ `systemctl` =~ -\.mount ]] || ( echo "systemd is required but it's not running.  Aborting." >&2; exit 1 )
+fi
 
 # Check for python2.7
 command -v python2.7 >/dev/null 2>&1 || { echo "python2.7 is required but it's not installed.  Aborting." >&2; exit 1; }
@@ -68,24 +78,48 @@ EOFSU
 # Setup the jumper agent service
 echo Setting up service ${SERVICE_NAME}...
 
-SERVICE_FILE=/lib/systemd/${SERVICE_NAME}.service
+if OS="ubunutu"
+    SERVICE_FILE=/etc/init.d/${SERVICE_NAME}.sh
 
-cp ${SCRIPT_DIR}/jumper-agent.template ${SERVICE_FILE}
-echo "ExecStart=${DEST_DIR}/venv/bin/python2.7 ${DEST_DIR}/agent_main.py" >> ${SERVICE_FILE}
-echo "User=${SERVICE_USER}" >> ${SERVICE_FILE}
-ln -fs ${SERVICE_FILE} /etc/systemd/system/${SERVICE_NAME}.service
+    cp ${SCRIPT_DIR}/jumper.template ${SERVICE_FILE}
+    echo "${DEST_DIR}/venv/bin/python2.7 ${DEST_DIR}/agent_main.py" >> ${SERVICE_FILE}
+    echo "User=${SERVICE_USER}" >> ${SERVICE_FILE}
+    ln -fs ${SERVICE_FILE} /etc/systemd/system/${SERVICE_NAME}.service
 
-# Start the jumper agent service
-systemctl daemon-reload
-systemctl start jumper-agent.service
+    # Start the jumper agent service
+    update-rc.d ${SERVICE_NAME} defaults
+    update-rc.d ${SERVICE_NAME} enable
+    service ${SERVICE_NAME} start
 
-sleep 1
+    sleep 1
 
-if [[ "`systemctl is-active ${SERVICE_NAME}`" -ne "active" ]]; then
-    echo "Error: Service ${SERVICE_NAME} is not running. Status information: " >&2
-    echo "" >&2
-    systemctl status ${SERVICE_NAME} >&2
-    exit 1
+    if [[ "`service ${SERVICE_NAME} status`" -ne "active" ]]; then
+        echo "Error: Service ${SERVICE_NAME} is not running. Status information: " >&2
+        echo "" >&2
+        systemctl status ${SERVICE_NAME} >&2
+        exit 1
+    fi
+elif
+    SERVICE_FILE=/lib/systemd/${SERVICE_NAME}.service
+
+    cp ${SCRIPT_DIR}/jumper-agent.template ${SERVICE_FILE}
+    echo "ExecStart=${DEST_DIR}/venv/bin/python2.7 ${DEST_DIR}/agent_main.py" >> ${SERVICE_FILE}
+    echo "User=${SERVICE_USER}" >> ${SERVICE_FILE}
+    ln -fs ${SERVICE_FILE} /etc/systemd/system/${SERVICE_NAME}.service
+
+    # Start the jumper agent service
+    systemctl daemon-reload
+    systemctl start jumper-agent.service
+
+    sleep 1
+
+    if [[ "`systemctl is-active ${SERVICE_NAME}`" -ne "active" ]]; then
+        echo "Error: Service ${SERVICE_NAME} is not running. Status information: " >&2
+        echo "" >&2
+        systemctl status ${SERVICE_NAME} >&2
+        exit 1
+    fi
 fi
+
 
 echo Success! Jumper logging agent is now installed and running.
