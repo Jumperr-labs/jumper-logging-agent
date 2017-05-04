@@ -110,6 +110,7 @@ class Agent(object):
                     log.warn('Invalid JSON: %s\n%s', line, e)
                     return None
 
+                log.debug('Pending event: %s', repr(event))
                 self.pending_events.append(event)
                 self.event_count += 1
                 should_flush = should_flush or len(self.pending_events) >= self.flush_threshold or \
