@@ -216,7 +216,7 @@ class AgentTestsInThread(_AbstractAgentTestCase):
         self.mock_event_store = MockEventStore()
         listening_event = threading.Event()
         self.agent = Agent(
-            input_filename=self.agent_filename,
+            input_filename=self.agent_filename, project_id='my_project_id', write_key='my_write_key',
             event_store=self.mock_event_store, on_listening=lambda: listening_event.set(), **kwargs
         )
         self.thread = threading.Thread(target=self.agent.start)
@@ -253,7 +253,7 @@ class AgentTestsInThread(_AbstractAgentTestCase):
         close_local_agent_file()
         wait_for(lambda: self.agent.event_count, 'event to reach agent')
         time.sleep(0.1)
-        self.assertEqual(mock_select.call_count, 2)
+        self.assertEqual(mock_select.call_count, 3)
 
 
 class AgentProcessTests(_AbstractAgentTestCase):

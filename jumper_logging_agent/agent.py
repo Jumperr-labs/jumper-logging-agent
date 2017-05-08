@@ -67,9 +67,9 @@ class RecurringTimer(threading.Thread):
 
 class Agent(object):
     def __init__(
-            self, input_filename, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
+            self, input_filename, project_id, write_key, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
             flush_interval=DEFAULT_FLUSH_INTERVAL, event_store=None, default_event_type=DEFAULT_EVENT_TYPE,
-            on_listening=None,
+            on_listening=None
     ):
         self.input_filename = input_filename
         self.flush_priority = flush_priority
@@ -80,6 +80,9 @@ class Agent(object):
         self.event_store = event_store or keen
         self.default_event_type = default_event_type
         self.on_listening = on_listening
+
+        self.event_store.project_id = project_id
+        self.event_store.write_key = write_key
 
     def start(self):
         flush_timer = RecurringTimer(self.flush_interval, self.flush)
@@ -97,29 +100,6 @@ class Agent(object):
                 else:
                     raise
 
-        def on_data_available(data):
-            should_flush = False
-
-            while True:
-                line = readline_with_retry(data)
-                if not line:
-                    break
-                try:
-                    event = json.loads(line)
-                except ValueError as e:
-                    log.warn('Invalid JSON: %s\n%s', line, e)
-                    return None
-
-                log.debug('Pending event: %s', repr(event))
-                self.pending_events.append(event)
-                self.event_count += 1
-                should_flush = should_flush or len(self.pending_events) >= self.flush_threshold or \
-                    event.get('priority') >= self.flush_priority
-
-            if should_flush:
-                log.debug('calling flush explicitly')
-                self.flush()
-
         while not should_stop:
             try:
                 input_file = open_fifo_read(self.input_filename)
@@ -130,7 +110,36 @@ class Agent(object):
 
                 while True:
                     select_result, _, _, = select.select((input_file, control_file), (), ())
-                    on_data_available(input_file)
+
+                    if input_file in select_result:
+                        should_flush = False
+
+                        line = readline_with_retry(input_file)
+                        if not line:
+                            # Empty line after select means that the other side has closed its handle
+                            input_file.close()
+                            input_file = open_fifo_read(self.input_filename)
+                        else:
+                            while True:
+                                try:
+                                    event = json.loads(line)
+                                except ValueError as e:
+                                    log.warn('Invalid JSON: %s\n%s', line, e)
+                                    break
+
+                                log.debug('Pending event: %s', repr(event))
+                                self.pending_events.append(event)
+                                self.event_count += 1
+                                should_flush = should_flush or len(self.pending_events) >= self.flush_threshold or \
+                                               event.get('priority') >= self.flush_priority
+
+                                line = readline_with_retry(input_file)
+                                if not line:
+                                    break
+
+                            if should_flush:
+                                log.debug('calling flush explicitly')
+                                self.flush()
 
                     if control_file in select_result:
                         should_stop = True
@@ -194,7 +203,9 @@ def agent_control_filename(agent_input_filename):
 
 
 def stop_agent(agent_input_filename):
-    with open(agent_control_filename(agent_input_filename), b'wb') as f:
+    filename = agent_control_filename(agent_input_filename)
+    log.debug('Writing stop to %s', filename)
+    with open(filename, b'wb') as f:
         f.write(b'stop')
 
 
@@ -223,6 +234,9 @@ def main():
         default=DEFAULT_EVENT_TYPE
     )
     parser.add_argument('--event-store', help='Module to use as event store', type=str, default=None)
+    parser.add_argument(
+        '--config-file', help='Location of config file in JSON format.', type=str, default='/etc/jumper_logging_agent/config.json'
+    )
     parser.add_argument('-v', '--verbose', help='Print logs', action='store_true')
     args = parser.parse_args()
 
@@ -238,6 +252,23 @@ def main():
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(format='%(asctime)s %(levelname)8s %(name)10s: %(message)s', level=log_level)
 
+    if not os.path.isfile(args.config_file):
+        print('Config file is missing: {}'.format(args.config_file))
+        return 3
+
+    with open(args.config_file) as fd:
+        try:
+            config = json.load(fd)
+        except ValueError:
+            print('Config file must be in JSON format: {}'.format(args.config_file))
+            return 4
+    try:
+        project_id = config['project_id']
+        write_key = config['write_key']
+    except KeyError as e:
+        print('Missing entry in config file: {}. {}'.format(args.config_file, e))
+        return 5
+
     print('Starting agent')
 
     def on_listening():
@@ -245,6 +276,8 @@ def main():
 
     agent = Agent(
         input_filename=args.input,
+        project_id=project_id,
+        write_key=write_key,
         flush_priority=args.flush_priority,
         flush_threshold=args.flush_threshold,
         flush_interval=args.flush_interval,
@@ -261,6 +294,3 @@ def main():
     agent.start()
     agent.cleanup()
     return 0
-
-
-
