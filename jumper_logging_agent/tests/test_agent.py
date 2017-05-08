@@ -4,12 +4,12 @@ import collections
 import json
 import os
 import random
-import socket
 import string
 import unittest
 import threading
 import subprocess
 
+import select
 import time
 
 import errno
@@ -18,6 +18,8 @@ import functools
 from unittest import skip
 
 from future import standard_library
+
+from mock import patch
 
 from . import mock_event_store
 from .mock_event_store import MockEventStore
@@ -244,6 +246,15 @@ class AgentTestsInThread(_AbstractAgentTestCase):
         wait_for(lambda: self.agent.event_count, 'event to reach agent')
         self.assertFalse(self.written_events())
 
+    @patch('select.select', wraps=select.select)
+    def test_select_should_not_return_on_empty_fifo(self, mock_select):
+        self.start_agent(flush_interval=10, flush_threshold=2)
+        self.push_events_to_agent()
+        close_local_agent_file()
+        wait_for(lambda: self.agent.event_count, 'event to reach agent')
+        time.sleep(0.1)
+        self.assertEqual(mock_select.call_count, 2)
+
 
 class AgentProcessTests(_AbstractAgentTestCase):
     def setUp(self):
@@ -293,3 +304,6 @@ class AgentProcessTests(_AbstractAgentTestCase):
 
         return events[t] if t is not None else events
 
+
+if __name__ == '__main__':
+    unittest.main()

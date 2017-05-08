@@ -130,11 +130,12 @@ class Agent(object):
 
                 while True:
                     select_result, _, _, = select.select((input_file, control_file), (), ())
-                    if input_file not in select_result:
+                    on_data_available(input_file)
+
+                    if control_file in select_result:
                         should_stop = True
                         break  # self.control_file has input - stop
 
-                    on_data_available(input_file)
             except select.error as e:
                 if e.args[0] == errno.EINTR:
                     break
