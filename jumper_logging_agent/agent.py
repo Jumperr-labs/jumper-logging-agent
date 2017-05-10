@@ -20,7 +20,7 @@ from future import standard_library
 from future.builtins import *
 standard_library.install_aliases()
 
-DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent'
+DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent/events'
 DEFAULT_FLUSH_THRESHOLD = 100
 DEFAULT_FLUSH_PRIORITY = 2
 DEFAULT_FLUSH_INTERVAL = 1.0
@@ -66,6 +66,8 @@ class RecurringTimer(threading.Thread):
 
 
 class Agent(object):
+    EVENT_TYPE_PROPERTY = 'type'
+
     def __init__(
             self, input_filename, project_id, write_key, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
             flush_interval=DEFAULT_FLUSH_INTERVAL, event_store=None, default_event_type=DEFAULT_EVENT_TYPE,
@@ -131,7 +133,7 @@ class Agent(object):
                                 self.pending_events.append(event)
                                 self.event_count += 1
                                 should_flush = should_flush or len(self.pending_events) >= self.flush_threshold or \
-                                               event.get('priority') >= self.flush_priority
+                                    event.get('priority') >= self.flush_priority
 
                                 line = readline_with_retry(input_file)
                                 if not line:
@@ -171,12 +173,11 @@ class Agent(object):
             self.write_events(events)
 
     def key(self, event):
-        return event.get('type', self.default_event_type)
+        return event.get(self.EVENT_TYPE_PROPERTY, self.default_event_type)
 
     def write_events(self, events):
-        grouped = itertools.groupby(sorted(events, key=self.key), self.key)
-        event_dict = {k: list(v) for k, v in grouped}
-        self.event_store.add_events(event_dict)
+        events_dict = dict(log=events)
+        self.event_store.add_events(events_dict)
 
     @property
     def control_filename(self):
@@ -235,7 +236,10 @@ def main():
     )
     parser.add_argument('--event-store', help='Module to use as event store', type=str, default=None)
     parser.add_argument(
-        '--config-file', help='Location of config file in JSON format.', type=str, default='/etc/jumper_logging_agent/config.json'
+        '--config-file',
+        help='Location of config file in JSON format.',
+        type=str,
+        default='/etc/jumper_logging_agent/config.json'
     )
     parser.add_argument('-v', '--verbose', help='Print logs', action='store_true')
     args = parser.parse_args()
