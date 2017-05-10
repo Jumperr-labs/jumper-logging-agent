@@ -12,11 +12,13 @@ if [ -f /etc/lsb-release ]; then
     OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
 fi
 
-if [ $OS = "ubuntu" ]; then
-    [[ `initctl` =~ -\.mount ]] || ( echo "init.d is required but it's not running.  Aborting." >&2; exit 1 )    
+if [ "$(pidof systemd)" != '' ]; then
+    init_ststem='systemd'
+elif [ "$(pidof /sbin/init)" != '' ]; then
+    init_system='init'
 else
-    # Check for systemd
-    [[ `systemctl` =~ -\.mount ]] || ( echo "systemd is required but it's not running.  Aborting." >&2; exit 1 )
+    echo "Could not detect neither systemd or init.  Aborting" >&2
+    exit 1
 fi
 
 # Check for python2.7
@@ -51,6 +53,7 @@ mkdir -p ${DEST_DIR}
 mkdir -p ${FIFO_DIR}
 chown ${SERVICE_USER}:${SERVICE_USER} ${FIFO_DIR}
 
+echo Copying files...
 # Copying the agent to its final destination
 COPY_FILES="jumper_logging_agent README.rst setup.py setup.cfg agent_main.py"
 for FILE in ${COPY_FILES}; do
@@ -78,7 +81,7 @@ EOFSU
 # Setup the jumper agent service
 echo Setting up service ${SERVICE_NAME}...
 
-if [ $OS = "ubuntu" ]; then
+if [ $init_system = "init" ]; then
     SERVICE_FILE=/etc/init.d/${SERVICE_NAME}
 
     cp ${SCRIPT_DIR}/jumper.template ${SERVICE_FILE}
