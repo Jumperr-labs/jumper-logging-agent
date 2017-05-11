@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import atexit
 import json
+
+import datetime
 import stat
 import os
 import argparse
@@ -23,7 +25,7 @@ standard_library.install_aliases()
 DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent/events'
 DEFAULT_FLUSH_THRESHOLD = 100
 DEFAULT_FLUSH_PRIORITY = 2
-DEFAULT_FLUSH_INTERVAL = 1.0
+DEFAULT_FLUSH_INTERVAL = 5.0
 DEFAULT_EVENT_TYPE = 'default'
 
 
@@ -176,6 +178,11 @@ class Agent(object):
         return event.get(self.EVENT_TYPE_PROPERTY, self.default_event_type)
 
     def write_events(self, events):
+        for event in events:
+            timestamp = event.pop('timestamp')
+            if timestamp:
+                event['keen'] = dict(timestamp=datetime.datetime.fromtimestamp(timestamp).isoformat())
+
         events_dict = dict(log=events)
         self.event_store.add_events(events_dict)
 
