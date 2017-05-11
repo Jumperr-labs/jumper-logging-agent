@@ -31,6 +31,8 @@ from jumper_logging_agent.agent import Agent, is_fifo
 
 MAIN_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
+DEFAULT_CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
+
 
 def delete_file(filename):
     try:
@@ -128,7 +130,7 @@ class _AbstractAgentTestCase(unittest.TestCase):
         return agent_file
 
     @retry_with_thread_local_agent_file
-    def push_events_to_agent(self, f, event_ids=None, priority=None, event_type='t'):
+    def push_events_to_agent(self, f=DEFAULT_CONFIG_FILE, event_ids=None, priority=None, event_type='t'):
         if event_ids is None:
             event_ids = [12]
 
@@ -155,7 +157,7 @@ class _AbstractAgentTestCase(unittest.TestCase):
     def test_flush_threshold(self):
         flush_threshold = 2
         self.start_agent(flush_interval=10, flush_threshold=flush_threshold)
-        self.push_events_to_agent(range(flush_threshold))
+        self.push_events_to_agent(event_ids=range(flush_threshold))
         wait_for(lambda: len(self.written_events('t')) == flush_threshold, 'events to be flushed')
 
     def test_flush_priority(self):
@@ -168,7 +170,7 @@ class _AbstractAgentTestCase(unittest.TestCase):
     def test_flush_interval(self):
         flush_interval = 0.3
         self.start_agent(flush_interval=flush_interval, flush_threshold=10)
-        self.push_events_to_agent(range(2))
+        self.push_events_to_agent(event_ids=range(2))
         wait_for(lambda: len(self.written_events('t')) >= 2, 'events to be flushed', 5.0)
 
     def test_multiple_writers(self):
@@ -235,10 +237,12 @@ class AgentTestsInThread(_AbstractAgentTestCase):
                 raise Exception('Agent thread has not ended')
 
     def written_events(self, t=None):
+        events = self.mock_event_store.events['log']
+
         if t is None:
-            return self.mock_event_store.events
+            return events
         else:
-            return self.mock_event_store.events[t]
+            return [e for e in events if e['type'] == t]
 
     def test_not_flushed_before_reaching_threshold(self):
         self.start_agent(flush_interval=10, flush_threshold=2)
@@ -253,7 +257,7 @@ class AgentTestsInThread(_AbstractAgentTestCase):
         close_local_agent_file()
         wait_for(lambda: self.agent.event_count, 'event to reach agent')
         time.sleep(0.1)
-        self.assertEqual(mock_select.call_count, 3)
+        self.assertEqual(mock_select.call_count, 2)
 
 
 class AgentProcessTests(_AbstractAgentTestCase):
@@ -271,6 +275,7 @@ class AgentProcessTests(_AbstractAgentTestCase):
         args = ['python', '-u', '%s/agent_main.py' % (MAIN_DIR,)]
         args.extend(['--input', self.agent_filename])
         args.extend(['--event-store', 'jumper_logging_agent.tests.mock_event_store.MockEventStoreInJson'])
+        args.extend(['--config-file', DEFAULT_CONFIG_FILE])
         for k, v in kwargs.items():
             args.append('--%s' % (k.replace('_', '-')))
             args.append(str(v))
@@ -302,7 +307,8 @@ class AgentProcessTests(_AbstractAgentTestCase):
         except (ValueError, IOError):
             events = collections.defaultdict(list)
 
-        return events[t] if t is not None else events
+        events = events['log']
+        return [e for e in events if e['type'] == t] if t is not None else events
 
 
 if __name__ == '__main__':

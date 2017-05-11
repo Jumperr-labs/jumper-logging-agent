@@ -58,7 +58,7 @@ class RecurringTimer(threading.Thread):
                 try:
                     target()
                 except Exception as e:
-                    log.warn('Caught exception in timer: %s', e)
+                    log.warn('Caught exception in timer: %s', e, exc_info=True)
                 self.stop_event.wait(interval)
 
         super(RecurringTimer, self).__init__(target=wrapped, *args, **kwargs)
@@ -179,7 +179,7 @@ class Agent(object):
 
     def write_events(self, events):
         for event in events:
-            timestamp = event.pop('timestamp')
+            timestamp = event.pop('timestamp', None)
             if timestamp:
                 event['keen'] = dict(timestamp=datetime.datetime.fromtimestamp(timestamp).isoformat())
 
