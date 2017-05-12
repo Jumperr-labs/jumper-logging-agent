@@ -6,6 +6,8 @@ This is a background service that allows Linux- and Windows-based systems to sen
 Installation
 ------------
 
+The following installation manual was tested on Unbuntu, Debian and Raspbian.
+
 Prerequesite: you need to have pip installed in order for the installation to work. If you don't have it yet, type the following command:
 
 	`sudo apt-get install python-pip`
