@@ -85,7 +85,7 @@ class Agent(object):
         self.default_event_type = default_event_type
         self.on_listening = on_listening
 
-        self.event_store.project_id = project_id
+        self.project_id = self.event_store.project_id = project_id
         self.event_store.write_key = write_key
 
     def start(self):
@@ -183,7 +183,7 @@ class Agent(object):
             if timestamp:
                 event['keen'] = dict(timestamp=datetime.datetime.fromtimestamp(timestamp).isoformat())
 
-        events_dict = dict(log=events)
+        events_dict = {self.project_id: events}
         self.event_store.add_events(events_dict)
 
     @property

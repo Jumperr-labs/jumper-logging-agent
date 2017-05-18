@@ -122,6 +122,10 @@ class _AbstractAgentTestCase(unittest.TestCase):
         self.stop_agent()
         delete_file(self.agent_filename)
 
+    @property
+    def agent_project_id(self):
+        raise NotImplementedError()
+
     def thread_local_agent_file(self):
         agent_file = getattr(local, 'agent_file', None)
         if not agent_file:
@@ -228,6 +232,10 @@ class AgentTestsInThread(_AbstractAgentTestCase):
         if not listening_event.wait(3.0):
             raise Exception('Agent has not started in time')
 
+    @property
+    def agent_project_id(self):
+        return self.agent.project_id
+
     def stop_agent(self):
         if self.agent:
             self.agent.stop()
@@ -237,7 +245,7 @@ class AgentTestsInThread(_AbstractAgentTestCase):
                 raise Exception('Agent thread has not ended')
 
     def written_events(self, t=None):
-        events = self.mock_event_store.events['log']
+        events = self.mock_event_store.events[self.agent_project_id]
 
         if t is None:
             return events
@@ -270,6 +278,11 @@ class AgentProcessTests(_AbstractAgentTestCase):
     def tearDown(self):
         super(AgentProcessTests, self).tearDown()
         delete_file(self.mock_event_store_json)
+
+    @property
+    def agent_project_id(self):
+        with open(DEFAULT_CONFIG_FILE, b'r') as f:
+            return json.load(f)['project_id']
 
     def start_agent(self, **kwargs):
         args = ['python', '-u', '%s/agent_main.py' % (MAIN_DIR,)]
@@ -307,7 +320,7 @@ class AgentProcessTests(_AbstractAgentTestCase):
         except (ValueError, IOError):
             events = collections.defaultdict(list)
 
-        events = events['log']
+        events = events[self.agent_project_id]
         return [e for e in events if e['type'] == t] if t is not None else events
 
 
