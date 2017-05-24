@@ -72,7 +72,7 @@ def keen_event_store(project_id, write_key):
         project_id=project_id,
         write_key=write_key,
         read_key='',
-        base_url='https://eventsapi.jumper.io'
+        base_url='https://eventsapi.jumper.io/3.0'
     )
 
 
