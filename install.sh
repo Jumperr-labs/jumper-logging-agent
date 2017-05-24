@@ -55,7 +55,7 @@ chown ${SERVICE_USER}:${SERVICE_USER} ${FIFO_DIR}
 
 echo Copying files...
 # Copying the agent to its final destination
-COPY_FILES="jumper_logging_agent README.rst setup.py setup.cfg agent_main.py"
+COPY_FILES="jumper_logging_agent README.md setup.py setup.cfg agent_main.py"
 for FILE in ${COPY_FILES}; do
     cp -R ${SCRIPT_DIR}/${FILE} ${DEST_DIR}/
 done
