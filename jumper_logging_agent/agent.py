@@ -12,14 +12,14 @@ import logging
 import errno
 import threading
 from importlib import import_module
-import itertools
-import keen
 import time
 
 import signal
 from future import standard_library
 # noinspection PyUnresolvedReferences
 from future.builtins import *
+from keen import KeenClient
+
 standard_library.install_aliases()
 
 DEFAULT_INPUT_FILENAME = '/var/run/jumper_logging_agent/events'
@@ -67,6 +67,15 @@ class RecurringTimer(threading.Thread):
         self.stop_event.set()
 
 
+def keen_event_store(project_id, write_key):
+    return KeenClient(
+        project_id=project_id,
+        write_key=write_key,
+        read_key='',
+        base_url='https://eventsapi.jumper.io'
+    )
+
+
 class Agent(object):
     EVENT_TYPE_PROPERTY = 'type'
 
@@ -81,7 +90,7 @@ class Agent(object):
         self.flush_interval = flush_interval
         self.event_count = 0
         self.pending_events = []
-        self.event_store = event_store or keen
+        self.event_store = event_store or keen_event_store(project_id, write_key)
         self.default_event_type = default_event_type
         self.on_listening = on_listening
 
