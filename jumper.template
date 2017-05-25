@@ -11,7 +11,7 @@
 # Author: Roy Razon <roy@jumper.io>
 
 dir="/opt/jumper_logging_agent"
-cmd="/opt/jumper_logging_agent/venv/bin/python2.7 /opt/jumper_logging_agent/agent_main.py"
+cmd="/opt/jumper_logging_agent/venv/bin/python /opt/jumper_logging_agent/agent_main.py -v"
 user="jumperagent"
 
 name=`basename $0`
