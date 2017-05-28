@@ -18,7 +18,7 @@ import signal
 from future import standard_library
 # noinspection PyUnresolvedReferences
 from future.builtins import *
-from keen import KeenClient
+import requests
 
 standard_library.install_aliases()
 
@@ -69,13 +69,19 @@ class RecurringTimer(threading.Thread):
         self.stop_event.set()
 
 
-def keen_event_store(project_id, write_key):
-    return KeenClient(
-        project_id=project_id,
-        write_key=write_key,
-        read_key='',
-        base_url='https://eventsapi.jumper.io'
-    )
+class DefaultEventStore(object):
+    BASE_URL = 'https://eventsapi.jumper.io/1.0'
+
+    def __init__(self, project_id, write_key):
+        self.url = '%s/projects/%s/events' % (self.BASE_URL, project_id)
+        self.headers = {
+            'Content-Type': 'application/json',
+            'Authorization': write_key,
+        }
+
+    def add_events(self, events):
+        response = requests.post(self.url, headers=self.headers, json=events)
+        response.raise_for_status()
 
 
 class Agent(object):
@@ -92,12 +98,9 @@ class Agent(object):
         self.flush_interval = flush_interval
         self.event_count = 0
         self.pending_events = []
-        self.event_store = event_store or keen_event_store(project_id, write_key)
+        self.event_store = event_store or DefaultEventStore(project_id, write_key)
         self.default_event_type = default_event_type
         self.on_listening = on_listening
-
-        self.project_id = self.event_store.project_id = project_id
-        self.event_store.write_key = write_key
 
     def start(self):
         flush_timer = RecurringTimer(self.flush_interval, self.flush)
@@ -183,19 +186,7 @@ class Agent(object):
         self.pending_events = []
 
         if events:
-            self.write_events(events)
-
-    def key(self, event):
-        return event.get(self.EVENT_TYPE_PROPERTY, self.default_event_type)
-
-    def write_events(self, events):
-        for event in events:
-            timestamp = event.pop('timestamp', None)
-            if timestamp:
-                event['keen'] = dict(timestamp=datetime.datetime.fromtimestamp(timestamp).isoformat())
-
-        events_dict = {self.project_id: events}
-        self.event_store.add_events(events_dict)
+            self.event_store.add_events(events)
 
     @property
     def control_filename(self):

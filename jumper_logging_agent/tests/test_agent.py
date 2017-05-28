@@ -245,7 +245,7 @@ class AgentTestsInThread(_AbstractAgentTestCase):
                 raise Exception('Agent thread has not ended')
 
     def written_events(self, t=None):
-        events = self.mock_event_store.events[self.agent_project_id]
+        events = self.mock_event_store.events
 
         if t is None:
             return events
@@ -318,9 +318,8 @@ class AgentProcessTests(_AbstractAgentTestCase):
             with open(self.mock_event_store_json, b'r') as f:
                 events = json.load(f)
         except (ValueError, IOError):
-            events = collections.defaultdict(list)
+            events = []
 
-        events = events[self.agent_project_id]
         return [e for e in events if e['type'] == t] if t is not None else events
 
 
