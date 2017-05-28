@@ -15,11 +15,10 @@ ENV_JUMPER_MOCK_EVENT_STORE_JSON = 'JUMPER_MOCK_EVENT_STORE_JSON'
 
 class MockEventStore(object):
     def __init__(self):
-        self.events = collections.defaultdict(list)
+        self.events = []
 
-    def add_events(self, d):
-        for k, v in d.items():
-            self.events[k].extend(v)
+    def add_events(self, events):
+        self.events.extend(events)
 
 
 class MockEventStoreInJson(MockEventStore):
