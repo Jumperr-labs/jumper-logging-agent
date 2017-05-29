@@ -34,8 +34,10 @@ def is_fifo(filename):
 
 
 def open_fifo_read(filename):
-    if not os.path.exists(DEFAULT_INPUT_FILENAME):
-        os.makedirs(os.path.dirname(DEFAULT_INPUT_FILENAME))
+    if not os.path.exists(filename):
+        dirname = os.path.dirname(filename)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
     try:
         os.mkfifo(filename)
     except OSError as e:
@@ -192,7 +194,7 @@ class Agent(object):
         for event in events:
             timestamp = event.pop('timestamp', None)
             if timestamp:
-                event['keen'] = dict(timestamp=datetime.datetime.fromtimestamp(timestamp).isoformat())
+                event['keen'] = dict(timestamp=timestamp)
 
         events_dict = {self.project_id: events}
         self.event_store.add_events(events_dict)
