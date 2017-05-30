@@ -73,9 +73,11 @@ class RecurringTimer(threading.Thread):
 
 class DefaultEventStore(object):
     BASE_URL = 'https://eventsapi.jumper.io/1.0'
+    BASE_URL_DEV = 'https://eventsapi-dev.jumper.io/1.0'
 
-    def __init__(self, project_id, write_key):
-        self.url = '%s/projects/%s/events' % (self.BASE_URL, project_id)
+    def __init__(self, project_id, write_key, dev_mode=False):
+        base_url = self.BASE_URL_DEV if dev_mode else self.BASE_URL
+        self.url = '%s/projects/%s/events' % (base_url, project_id)
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': write_key,
@@ -92,7 +94,7 @@ class Agent(object):
     def __init__(
             self, input_filename, project_id, write_key, flush_priority=DEFAULT_FLUSH_PRIORITY, flush_threshold=DEFAULT_FLUSH_THRESHOLD,
             flush_interval=DEFAULT_FLUSH_INTERVAL, event_store=None, default_event_type=DEFAULT_EVENT_TYPE,
-            on_listening=None
+            on_listening=None, dev_mode=False
     ):
         self.input_filename = input_filename
         self.flush_priority = flush_priority
@@ -100,7 +102,7 @@ class Agent(object):
         self.flush_interval = flush_interval
         self.event_count = 0
         self.pending_events = []
-        self.event_store = event_store or DefaultEventStore(project_id, write_key)
+        self.event_store = event_store or DefaultEventStore(project_id, write_key, dev_mode=dev_mode)
         self.default_event_type = default_event_type
         self.on_listening = on_listening
         self.project_id = project_id
@@ -254,6 +256,7 @@ def main():
         default='/etc/jumper_logging_agent/config.json'
     )
     parser.add_argument('-v', '--verbose', help='Print logs', action='store_true')
+    parser.add_argument('-d', '--dev-mode', help='Sends data to development BE', action='store_true')
     args = parser.parse_args()
 
     event_store = None
@@ -300,6 +303,7 @@ def main():
         default_event_type=args.default_event_type,
         event_store=event_store,
         on_listening=on_listening,
+        dev_mode=args.dev_mode
     )
 
     signal.signal(signal.SIGTERM, lambda *a: agent.stop())
