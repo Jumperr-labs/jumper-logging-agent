@@ -1,35 +1,30 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import collections
-import json
-import os
-import random
-import string
-import unittest
-import threading
-import subprocess
-
-import select
-import time
-
 import errno
-
 import functools
-from unittest import skip
+import json
+import random
+import select
+import string
+import subprocess
+import threading
+import time
+import unittest
 
+import os
 from future import standard_library
-
 from mock import patch
+
+from future.builtins import *
 
 from . import mock_event_store
 from .mock_event_store import MockEventStore
-
-standard_library.install_aliases()
-from future.builtins import *
-
 from jumper_logging_agent.agent import Agent, is_fifo
 
-MAIN_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+standard_library.install_aliases()
+
+
+MAIN_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 DEFAULT_CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
 
@@ -287,7 +282,7 @@ class AgentProcessTests(_AbstractAgentTestCase):
     def start_agent(self, **kwargs):
         args = ['python', '-u', '%s/agent_main.py' % (MAIN_DIR,)]
         args.extend(['--input', self.agent_filename])
-        args.extend(['--event-store', 'jumper_logging_agent.tests.mock_event_store.MockEventStoreInJson'])
+        args.extend(['--event-store', 'tests.mock_event_store.MockEventStoreInJson'])
         args.extend(['--config-file', DEFAULT_CONFIG_FILE])
         for k, v in kwargs.items():
             args.append('--%s' % (k.replace('_', '-')))

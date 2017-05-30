@@ -103,6 +103,7 @@ class Agent(object):
         self.event_store = event_store or DefaultEventStore(project_id, write_key)
         self.default_event_type = default_event_type
         self.on_listening = on_listening
+        self.project_id = project_id
 
     def start(self):
         flush_timer = RecurringTimer(self.flush_interval, self.flush)
