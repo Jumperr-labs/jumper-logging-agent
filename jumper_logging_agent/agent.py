@@ -34,8 +34,10 @@ def is_fifo(filename):
 
 
 def open_fifo_read(filename):
-    if not os.path.exists(DEFAULT_INPUT_FILENAME):
-        os.makedirs(os.path.dirname(DEFAULT_INPUT_FILENAME))
+    if not os.path.exists(filename):
+        dirname = os.path.dirname(filename)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
     try:
         os.mkfifo(filename)
     except OSError as e:
