@@ -18,7 +18,7 @@ setup(
     version=version,
 
     description='The jumper background logging agent for Linux and Windows systems',
-    long_description=long_description,
+    # long_description=long_description,
 
     # The project's main homepage.
     url='https://github.com/jumperr-labs/jumper-logging-agent',
