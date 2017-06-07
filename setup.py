@@ -22,7 +22,7 @@ setup(
 
     # The project's main homepage.
     url='https://github.com/jumperr-labs/jumper-logging-agent',
-    download_url='https://github.com/Jumperr-labs/jumper-logging-agent/archive/0.0.20.tar.gz',
+    download_url='https://github.com/Jumperr-labs/jumper-logging-agent/archive/{}.tar.gz'.format(version),
 
     # Author details
     author='Roy Razon',
