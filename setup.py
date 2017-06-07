@@ -14,13 +14,14 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.0.dev',
+    version='0.0.20',
 
     description='The jumper background logging agent for Linux and Windows systems',
     long_description=long_description,
 
     # The project's main homepage.
     url='https://github.com/jumperr-labs/jumper-logging-agent',
+    download_url='https://github.com/Jumperr-labs/jumper-logging-agent/archive/0.0.20.tar.gz',
 
     # Author details
     author='Roy Razon',
