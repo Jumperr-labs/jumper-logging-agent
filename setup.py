@@ -2,11 +2,12 @@ from setuptools import setup, find_packages
 
 from codecs import open
 from os import path
+from jumper_logging_agent import version
 
 here = path.abspath(path.dirname(__file__))
 
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+# with open(path.join(here, 'README.md'), encoding='utf-8') as f:
+#     long_description = f.read()
 
 setup(
     name='jumper-logging-agent',
@@ -14,7 +15,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.20',
+    version=version,
 
     description='The jumper background logging agent for Linux and Windows systems',
     long_description=long_description,
