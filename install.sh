@@ -33,8 +33,10 @@ INSTALLATION_LOG=/tmp/jumper_agent_installation.log
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DEST_DIR=/opt/jumper_logging_agent
 FIFO_DIR=/var/run/jumper_logging_agent
+CONFIG_DIR=/etc/jumper_logging_agent
 SERVICE_USER=jumperagent
 SERVICE_NAME=jumper-agent
+CONFIG_FILE=config.json
 
 if ! command -v virtualenv --version >/dev/null 2>&1; then
     echo Installing virtualenv...
@@ -51,6 +53,12 @@ echo Creating directories...
 rm -rf ${DEST_DIR}
 mkdir -p ${DEST_DIR}
 mkdir -p ${FIFO_DIR}
+
+if [ ! -d ${CONFIG_DIR} ]; then
+  mkdir -p ${CONFIG_DIR}
+  cp ${CONFIG_FILE} ${CONFIG_DIR}
+fi
+
 chown ${SERVICE_USER}:${SERVICE_USER} ${FIFO_DIR}
 
 echo Copying files...
