@@ -230,7 +230,7 @@ def extract_class(s):
     return getattr(mod, class_name)
 
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', help='Named pipe to read from', type=str, default=DEFAULT_INPUT_FILENAME)
     parser.add_argument(
@@ -257,7 +257,7 @@ def main():
     )
     parser.add_argument('-v', '--verbose', help='Print logs', action='store_true')
     parser.add_argument('-d', '--dev-mode', help='Sends data to development BE', action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(args=args)
 
     event_store = None
     if args.event_store:
