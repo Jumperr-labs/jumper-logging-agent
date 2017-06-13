@@ -39,3 +39,9 @@ Stop the service:
 
 Check if the agent is running:
 `sudo service jumper-agent status`
+
+## Contribute
+Feel free to open issues and send us your pull requests.
+
+## Contact Us
+We are happy to help! Feel free to contact us about any issue and give us your feedback at [info@jumper.io](mailto:info@jumper.io)
